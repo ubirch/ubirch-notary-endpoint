@@ -1,29 +1,37 @@
 #[macro_use]
 extern crate serde_derive;
 
-use warp::*;
-use std::io::Read;
-use std::error::Error;
-use std::env;
+use warp::{
+    *,
+    body::FullBody
+};
+use std::{
+    io::Read,
+    error::Error,
+    env,
+    sync::RwLock,
+    collections::HashMap,
+    time::Instant,
+    time::Duration,
+    sync::Arc,
+    net::SocketAddr
+};
 use rdkafka::{
     ClientConfig,
-    producer::FutureProducer,
-    producer::FutureRecord,
+    producer::{
+        FutureProducer,
+        FutureRecord
+    },
+    consumer::{
+        StreamConsumer,
+        Consumer,
+        CommitMode
+    },
+    config::RDKafkaLogLevel,
+    message::Message,
 };
-use warp::body::FullBody;
-use rdkafka::consumer::StreamConsumer;
-use rdkafka::config::RDKafkaLogLevel;
-use rdkafka::consumer::Consumer;
 use ::log::*;
-use rdkafka::message::Message;
-use std::sync::RwLock;
-use std::collections::HashMap;
-use std::time::Instant;
-use std::time::Duration;
 use tokio::timer;
-use std::sync::Arc;
-use std::net::SocketAddr;
-use rdkafka::consumer::CommitMode;
 
 #[derive(Serialize, Deserialize)]
 enum NotaryResponse {

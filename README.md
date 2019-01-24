@@ -2,7 +2,7 @@
 
 Simple endpoint for use with `ubirch-ethereum-service` (and possibly others).
 
-The application is written in Rust, using `warp` and `rdkafka`.
+The application is written in Rust, using [`warp`](https://github.com/seanmonstar/warp) and [`rdkafka`](https://github.com/fede1024/rust-rdkafka).
 
 ## Building
 You can build the executable using Rust, or just go straight for building the
