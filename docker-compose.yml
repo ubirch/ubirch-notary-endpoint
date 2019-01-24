@@ -1,0 +1,33 @@
+version: "3"
+networks:
+  test:
+services:
+  kafka:
+    image: spotify/kafka
+    container_name: kafka
+    networks:
+      - test
+    ports:
+      - 9092:9092
+      - 2181:2181
+    environment:
+      ADVERTISED_HOST: kafka
+      ADVERTISED_PORT: "9092"
+  notary-endpoint:
+    build: ./.
+    ports:
+      - 8000:8000
+    networks:
+      - test
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      REQUEST_TOPIC: request
+      RESPONSE_TOPIC: response
+      ERROR_TOPIC: error
+      RUST_LOG: "ubirch_notary_endpoint,warp=debug,rdkafka=info"
+      EXPLORER_URL: some-eth-explorer
+      BIND_ADDR: "0.0.0.0:8000"
+    entrypoint:
+      - bash
+      - -c
+      - "sleep 5s && ubirch-notary-endpoint"
