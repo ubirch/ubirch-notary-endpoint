@@ -6,7 +6,6 @@ use warp::{
     body::FullBody,
 };
 use std::{
-    io::Read,
     error::Error,
     env,
     sync::RwLock,
@@ -66,13 +65,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ethereum_service_responses = Arc::new(RwLock::new(HashMap::<String, String>::new()));
 
-    let hex_encoded_body = body::concat().and_then(|fb: FullBody| -> Result<_, Rejection> {
-        let mut body_str = String::new();
-        fb.reader().read_to_string(&mut body_str).map_err(reject::custom)?;
-
-        Ok(hex::encode(body_str))
-    });
-
     let get_response_for_encoded_message = {
         let ethereum_service_responses = Arc::clone(&ethereum_service_responses);
 
@@ -87,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let submit = path::end()
         .and(post2())
-        .and(hex_encoded_body)
+        .and(body::concat().map(|b: FullBody| hex::encode(b.collect::<Vec<_>>())))
         .and_then(move |encoded_body: String| {
             let record = FutureRecord::to(&request_topic).payload(&encoded_body).key(&encoded_body);
             let timeout = 0;
