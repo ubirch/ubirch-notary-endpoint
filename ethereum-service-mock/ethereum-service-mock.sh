@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-echo "waiting for kafka to be up..."
-while ! kafkacat -L -b kafka:9092 -t request > /dev/null; do
-    echo "trying again..."
-done
 echo "starting ethereum-service mock"
 
 kafkacat -C -b kafka:9092 -t request -f '{"status": "added", "txid": "%T", "message": "%s"}\n' -u \
