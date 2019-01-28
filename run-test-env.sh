@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 
-if ! which jq; then
-    echo "jq and docker are required to run this script"
-    exit 1
-fi
-
-if ! which docker; then
-    echo "jq and docker are required to run this script"
+if ! which docker-compose; then
+    echo "docker-compose is required to run this script"
     exit 1
 fi
 
