@@ -43,7 +43,7 @@ enum NotaryResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-struct EtheriumServiceResponse {
+struct EthereumServiceResponse {
     txid: String,
     message: String,
 }
@@ -150,7 +150,7 @@ fn start_kafka_consumer_thread(
                 let message = message?;
                 consumer.commit_message(&message, CommitMode::Async)?;
                 let payload = message.payload().ok_or(failure::err_msg("no payload"))?;
-                let payload: EtheriumServiceResponse = serde_json::from_slice(payload)?;
+                let payload: EthereumServiceResponse = serde_json::from_slice(payload)?;
 
                 ethereum_service_responses.write().unwrap().insert(payload.message, payload.txid);
                 Ok(())
