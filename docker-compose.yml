@@ -1,24 +1,27 @@
 version: "3"
 networks:
-  test:
+  notary-endpoint-test:
 services:
   kafka:
     image: spotify/kafka
-    container_name: kafka
     networks:
-      - test
+      - notary-endpoint-test
     ports:
       - 9092:9092
       - 2181:2181
     environment:
       ADVERTISED_HOST: kafka
       ADVERTISED_PORT: "9092"
+  ethereum-service-mock:
+    build: ./ethereum-service-mock
+    networks:
+      - notary-endpoint-test
   notary-endpoint:
     build: ./.
     ports:
       - 8000:8000
     networks:
-      - test
+      - notary-endpoint-test
     environment:
       KAFKA_BROKERS: kafka:9092
       REQUEST_TOPIC: request
