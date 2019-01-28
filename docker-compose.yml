@@ -33,4 +33,4 @@ services:
     entrypoint:
       - bash
       - -c
-      - "sleep 5s && ubirch-notary-endpoint"
+      - "sleep 5s && ./ubirch-notary-endpoint"
