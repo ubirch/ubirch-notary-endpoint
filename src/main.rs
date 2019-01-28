@@ -6,7 +6,6 @@ use warp::{
     body::FullBody,
 };
 use std::{
-    error::Error,
     env,
     sync::RwLock,
     collections::HashMap,
@@ -32,6 +31,9 @@ use rdkafka::{
 use ::log::*;
 use tokio::timer;
 use std::thread::JoinHandle;
+use exitfailure::ExitFailure;
+use failure::ResultExt;
+use failure::Error;
 
 #[derive(Serialize, Deserialize)]
 enum NotaryResponse {
@@ -46,22 +48,30 @@ struct EtheriumServiceResponse {
     message: String,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     info!("Starting notary-endpoint!");
 
-    let brokers = env::var("KAFKA_BROKERS")?;
-    let request_topic = env::var("REQUEST_TOPIC")?;
-    let response_topic = env::var("RESPONSE_TOPIC")?;
-    let error_topic = env::var("ERROR_TOPIC")?;
-    let explorer_url = env::var("EXPLORER_URL")?;
-    let bind_address = env::var("BIND_ADDR")?;
+    // small macro to get nicer error messages
+    macro_rules! get_env {
+        ($env_name: literal) => {
+            env::var($env_name).context(concat!("getting environment variable ", $env_name))?
+        };
+    }
+
+    let brokers = get_env!("KAFKA_BROKERS");
+    let request_topic = get_env!("REQUEST_TOPIC");
+    let response_topic = get_env!("RESPONSE_TOPIC");
+    let error_topic = get_env!("ERROR_TOPIC");
+    let explorer_url = get_env!("EXPLORER_URL");
+    let bind_address = get_env!("BIND_ADDR");
 
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
         .set("produce.offset.report", "true")
         .set("message.timeout.ms", "5000")
-        .create()?;
+        .create()
+        .context("creating kafka producer")?;
 
     let ethereum_service_responses = Arc::new(RwLock::new(HashMap::<String, String>::new()));
 
@@ -94,15 +104,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let check = path!("check" / String).map(get_response_for_encoded_message);
 
-    let consumer_thread_handle = start_kafka_consumer_thread(&brokers, &response_topic, &error_topic, ethereum_service_responses);
+    let consumer_thread_handle = start_kafka_consumer_thread(&brokers, &response_topic, &error_topic, ethereum_service_responses)?;
 
-    serve(check.or(submit)).run(bind_address.parse::<SocketAddr>()?);
+    serve(check.or(submit)).run(
+        bind_address.parse::<SocketAddr>()
+            .with_context(|_| format!("parsing {}", bind_address))?
+    );
+
     consumer_thread_handle.join().unwrap();
 
     Ok(())
 }
 
-fn log_error<F>(f: F) where F: FnOnce() -> Result<(), Box<dyn Error>> {
+fn log_error<F>(f: F) where F: FnOnce() -> Result<(), Error> {
     match f() {
         Err(e) => error!("{}", e),
         _ => ()
@@ -114,7 +128,7 @@ fn start_kafka_consumer_thread(
     response_topic: &str,
     error_topic: &str,
     ethereum_service_responses: Arc<RwLock<HashMap<String, String>>>,
-) -> JoinHandle<()> {
+) -> Result<JoinHandle<()>, Error> {
     info!("Starting kafka consumer thread");
     let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", "ubirch-notary-endpoint")
@@ -124,17 +138,18 @@ fn start_kafka_consumer_thread(
         .set("enable.auto.commit", "true")
         .set_log_level(RDKafkaLogLevel::Debug)
         .create()
-        .expect("Could not create kafka consumer");
+        .context("creating kafka consumer")?;
 
-    consumer.subscribe(&[&response_topic, &error_topic])
-        .expect("Could not subscribe to given topics");
+    let topics = &[response_topic, error_topic];
+    consumer.subscribe(topics)
+        .with_context(|_| format!("subscribing to topics: {:?}", topics))?;
 
-    std::thread::spawn(move || {
+    let join_handle = std::thread::spawn(move || {
         let process_responses = consumer.start().for_each(|message| {
             log_error(|| {
                 let message = message?;
                 consumer.commit_message(&message, CommitMode::Async)?;
-                let payload = message.payload().ok_or("no payload")?;
+                let payload = message.payload().ok_or(failure::err_msg("no payload"))?;
                 let payload: EtheriumServiceResponse = serde_json::from_slice(payload)?;
 
                 ethereum_service_responses.write().unwrap().insert(payload.message, payload.txid);
@@ -146,5 +161,7 @@ fn start_kafka_consumer_thread(
 
         tokio::executor::current_thread::block_on_all(process_responses)
             .expect("Error while processing responses");
-    })
+    });
+
+    Ok(join_handle)
 }
