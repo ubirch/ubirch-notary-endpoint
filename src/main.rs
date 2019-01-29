@@ -80,7 +80,7 @@ fn main() -> Result<(), ExitFailure> {
 
         move |message| {
             if let Some(txid) = ethereum_service_responses.read().unwrap().get(&message) {
-                reply::json(&NotaryResponse::Ok { explorer_url: format!("{}/{}", explorer_url, txid) })
+                reply::json(&NotaryResponse::Ok { explorer_url: format!("{}/0x{}", explorer_url, txid) })
             } else {
                 reply::json(&NotaryResponse::CheckAgain { url: format!("/check/{}", message) })
             }
