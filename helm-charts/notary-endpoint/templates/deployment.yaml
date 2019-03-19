@@ -1,0 +1,74 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    env: {{ .Release.Namespace | quote }}
+    chart: {{ template "chartName" . }}
+    release: {{ .Release.Name | quote }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+      release: {{ .Release.Name | quote }}
+      env: {{ .Release.Namespace | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}
+        release: {{ .Release.Name | quote }}
+        env: {{ .Release.Namespace | quote }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /check/0x0
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /check/0x0
+              port: http
+          env:
+            - name: KAFKA_BROKERS
+              value: {{ .Values.notaryService.kafkaBrokers | quote }}
+            - name: KAFKA_DEBUG
+              value: {{ .Values.notaryService.kafkaDebug | quote }}
+            - name: REQUEST_TOPIC
+              value: {{ .Values.notaryService.request | quote }}
+            - name: RESPONSE_TOPIC
+              value: {{ .Values.notaryService.response | quote }}
+            - name: ERROR_TOPIC
+              value: {{ .Values.notaryService.error | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.notaryService.rustlog | quote }}
+            - name: EXPLORER_URL
+              value: {{ .Values.notaryService.explorer | quote }}
+            - name: BIND_ADDR
+              value: "0.0.0.0:80"
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

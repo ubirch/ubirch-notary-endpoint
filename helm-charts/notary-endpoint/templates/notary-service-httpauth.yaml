@@ -1,0 +1,7 @@
+apiVersion: v1
+data:
+  auth: {{ .Values.notaryService.httpauth | b64enc | quote }}
+kind: Secret
+metadata:
+  name: notary-service-httpauth
+type: Opaque
