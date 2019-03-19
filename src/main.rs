@@ -64,20 +64,23 @@ fn main() -> Result<(), ExitFailure> {
     let error_topic = get_env!("ERROR_TOPIC");
     let explorer_url = get_env!("EXPLORER_URL");
     let bind_address = get_env!("BIND_ADDR");
+    let kafka_debug = get_env!("KAFKA_DEBUG");
 
     debug!("Configuration\n\
             \tbrokers: {}\n\
             \trequest topic: {}\n\
             \tresponse topic: {}\n\
             \terror topic: {}\n\
+            \tkafka debug: {}\n\
             \texplorer url: {}\n\
             \tbind address: {}",
-           brokers, request_topic, response_topic, error_topic, explorer_url, bind_address);
+           brokers, request_topic, response_topic, error_topic, kafka_debug, explorer_url, bind_address);
 
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
         .set("produce.offset.report", "true")
         .set("message.timeout.ms", "5000")
+        .set("debug", &kafka_debug)
         .create()
         .context("creating kafka producer")?;
 
@@ -115,7 +118,13 @@ fn main() -> Result<(), ExitFailure> {
 
     let check = path!("check" / String).map(get_response_for_encoded_message);
 
-    let consumer_thread_handle = start_kafka_consumer_thread(&brokers, &response_topic, &error_topic, ethereum_service_responses)?;
+    let consumer_thread_handle = start_kafka_consumer_thread(
+        &brokers,
+        &response_topic,
+        &error_topic,
+        &kafka_debug,
+        ethereum_service_responses,
+    )?;
 
     serve(check.or(submit)).run(
         bind_address.parse::<SocketAddr>()
@@ -138,6 +147,7 @@ fn start_kafka_consumer_thread(
     brokers: &str,
     response_topic: &str,
     error_topic: &str,
+    kafka_debug: &str,
     ethereum_service_responses: Arc<RwLock<HashMap<String, String>>>,
 ) -> Result<JoinHandle<()>, Error> {
     info!("Starting kafka consumer thread");
@@ -147,6 +157,7 @@ fn start_kafka_consumer_thread(
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "true")
+        .set("debug", kafka_debug)
         .create()
         .context("creating kafka consumer")?;
 
