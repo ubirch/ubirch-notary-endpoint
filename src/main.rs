@@ -111,10 +111,11 @@ fn main() -> Result<(), ExitFailure> {
                 res.map(|_| encoded_body)
                     .map_err(|(kafka_err, _)| reject::custom(kafka_err))
             })
-        }).and_then(|encoded_body|
-        timer::Delay::new(Instant::now() + Duration::from_secs(1)).map(|_| encoded_body)
+        })
+        .and_then(|encoded_body| timer::Delay::new(Instant::now() + Duration::from_secs(1))
+            .map(|_| encoded_body)
             .map_err(reject::custom)
-    ).map(get_response_for_encoded_message.clone());
+        ).map(get_response_for_encoded_message.clone());
 
     let check = path!("check" / String).map(get_response_for_encoded_message);
 
@@ -126,7 +127,9 @@ fn main() -> Result<(), ExitFailure> {
         ethereum_service_responses,
     )?;
 
-    serve(check.or(submit)).run(
+    let api = check.or(submit).with(warp::log("ubirch_notary_endpoint::connections"));
+
+    serve(api).run(
         bind_address.parse::<SocketAddr>()
             .with_context(|_| format!("parsing {}", bind_address))?
     );
