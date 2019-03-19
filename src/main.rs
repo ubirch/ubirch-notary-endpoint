@@ -25,7 +25,6 @@ use rdkafka::{
         Consumer,
         CommitMode,
     },
-    config::RDKafkaLogLevel,
     message::Message,
 };
 use ::log::*;
@@ -66,6 +65,15 @@ fn main() -> Result<(), ExitFailure> {
     let explorer_url = get_env!("EXPLORER_URL");
     let bind_address = get_env!("BIND_ADDR");
 
+    debug!("Configuration\n\
+            \tbrokers: {}\n\
+            \trequest topic: {}\n\
+            \tresponse topic: {}\n\
+            \terror topic: {}\n\
+            \texplorer url: {}\n\
+            \tbind address: {}",
+           brokers, request_topic, response_topic, error_topic, explorer_url, bind_address);
+
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
         .set("produce.offset.report", "true")
@@ -80,8 +88,10 @@ fn main() -> Result<(), ExitFailure> {
 
         move |message| {
             if let Some(txid) = ethereum_service_responses.read().unwrap().get(&message) {
+                info!("txid for message [{}] found = [{}]!", message, txid);
                 reply::json(&NotaryResponse::Ok { explorer_url: format!("{}/0x{}", explorer_url, txid) })
             } else {
+                info!("txid for message [{}] not found! Check later.", message);
                 reply::json(&NotaryResponse::CheckAgain { url: format!("/check/{}", message) })
             }
         }
@@ -93,14 +103,15 @@ fn main() -> Result<(), ExitFailure> {
         .and_then(move |encoded_body: String| {
             let record = FutureRecord::to(&request_topic).payload(&encoded_body).key(&encoded_body);
             let timeout = 0;
+            debug!("Sending [{}] to eth service kafka", encoded_body);
             producer.send(record, timeout).map_err(reject::custom).and_then(|res| {
                 res.map(|_| encoded_body)
                     .map_err(|(kafka_err, _)| reject::custom(kafka_err))
             })
         }).and_then(|encoded_body|
-            timer::Delay::new(Instant::now() + Duration::from_secs(1)).map(|_| encoded_body)
-                .map_err(reject::custom)
-        ).map(get_response_for_encoded_message.clone());
+        timer::Delay::new(Instant::now() + Duration::from_secs(1)).map(|_| encoded_body)
+            .map_err(reject::custom)
+    ).map(get_response_for_encoded_message.clone());
 
     let check = path!("check" / String).map(get_response_for_encoded_message);
 
@@ -136,7 +147,6 @@ fn start_kafka_consumer_thread(
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "true")
-        .set_log_level(RDKafkaLogLevel::Debug)
         .create()
         .context("creating kafka consumer")?;
 
@@ -147,12 +157,18 @@ fn start_kafka_consumer_thread(
     let join_handle = std::thread::spawn(move || {
         let process_responses = consumer.start().for_each(|message| {
             log_error(|| {
-                let message = message?;
-                consumer.commit_message(&message, CommitMode::Async)?;
+                debug!("Kafka message received");
+                let message = message.context("getting message")?;
+                consumer.commit_message(&message, CommitMode::Async)
+                    .context("committing message")?;
                 let payload = message.payload().ok_or(failure::err_msg("no payload"))?;
-                let payload: EthereumServiceResponse = serde_json::from_slice(payload)?;
+                let payload: EthereumServiceResponse = serde_json::from_slice(payload)
+                    .context("decoding message")?;
 
+                info!("Storing response txid [{}] for message [{}]...", payload.txid, payload.message);
                 ethereum_service_responses.write().unwrap().insert(payload.message, payload.txid);
+                info!("Successfully stored!");
+
                 Ok(())
             });
 

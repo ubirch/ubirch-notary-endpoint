@@ -27,7 +27,7 @@ services:
       REQUEST_TOPIC: request
       RESPONSE_TOPIC: response
       ERROR_TOPIC: error
-      RUST_LOG: "ubirch_notary_endpoint,warp=debug,rdkafka=info"
+      RUST_LOG: "ubirch_notary_endpoint=debug,warp=debug,rdkafka=debug"
       EXPLORER_URL: some-eth-explorer
       BIND_ADDR: "0.0.0.0:8000"
     entrypoint:
