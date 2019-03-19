@@ -29,6 +29,7 @@ The application is configured with the following environment variables:
 | ERROR_TOPIC | topic that ethereum service uses to provide errors |
 | EXPLORER_URL | url of the blockchain explorer; `/<txid>` will be appended to it when responding to user |
 | BIND_ADDR | address that this server listens on `<ip>:<port>` |
+| KAFKA_DEBUG | comma separated debug flags for kafka, see https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md |
 
 ## Endpoints
 
