@@ -189,7 +189,7 @@ fn start_kafka_consumer_thread(
             Ok(())
         });
 
-        tokio::executor::current_thread::block_on_all(process_responses)
+        tokio::runtime::current_thread::block_on_all(process_responses)
             .expect("Error while processing responses");
     });
 
