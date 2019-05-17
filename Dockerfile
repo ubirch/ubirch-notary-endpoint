@@ -1,4 +1,4 @@
-FROM rust:1.32.0 as build
+FROM rust:1.34.2 as build
 
 # create a new empty shell project
 RUN USER=root cargo new --bin ubirch-notary-endpoint
@@ -7,6 +7,9 @@ WORKDIR /ubirch-notary-endpoint
 # copy over your manifests
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
+
+# librdkafka started depending on clang :(
+RUN apt update && apt install -y clang
 
 # this build step will cache your dependencies
 RUN cargo build --release
@@ -22,7 +25,7 @@ RUN rm ./target/release/deps/*ubirch_notary_endpoint*
 RUN cargo build --release
 
 # our final base
-FROM rust:1.32.0-slim
+FROM rust:1.34.2-slim
 
 # copy the build artifact from the build stage
 COPY --from=build /ubirch-notary-endpoint/target/release/ubirch-notary-endpoint .
